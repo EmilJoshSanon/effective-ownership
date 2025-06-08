@@ -79,8 +79,8 @@
         "target_depth": 4,
         "share": "100%",
         "real_lower_share": 0.022500000000000003,
-        "real_average_share": 0.04168125,
-        "real_upper_share": 0.067,
+        "real_average_share": 0.044807343750000006,
+        "real_upper_share": 0.075375,
         "active": true
     },
     {
@@ -92,9 +92,9 @@
         "target_name": "FORSIKRINGSSELSKABET DANICA, SKADEFORSIKRINGSAKTIESELSKAB AF 1999",
         "target_depth": 5,
         "share": "100%",
-        "real_lower_share": 0.022500000000000003,
-        "real_average_share": 0.04168125,
-        "real_upper_share": 0.067,
+        "real_lower_share": 0.045000000000000005,
+        "real_average_share": 0.08648859375000001,
+        "real_upper_share": 0.142375,
         "active": true
     },
     {
@@ -106,9 +106,9 @@
         "target_name": "DANSKE BANK A/S",
         "target_depth": 6,
         "share": "20-25%",
-        "real_lower_share": 0.0045000000000000005,
-        "real_average_share": 0.00937828125,
-        "real_upper_share": 0.01675,
+        "real_lower_share": 0.013500000000000002,
+        "real_average_share": 0.02883821484375,
+        "real_upper_share": 0.05234375,
         "active": true
     },
     {
@@ -120,9 +120,9 @@
         "target_name": "APMH INVEST A/S",
         "target_depth": 7,
         "share": "100%",
-        "real_lower_share": 0.0045000000000000005,
-        "real_average_share": 0.00937828125,
-        "real_upper_share": 0.01675,
+        "real_lower_share": 0.018000000000000002,
+        "real_average_share": 0.03821649609375,
+        "real_upper_share": 0.06909375000000001,
         "active": true
     },
     {
@@ -134,9 +134,9 @@
         "target_name": "A.P. MØLLER HOLDING A/S",
         "target_depth": 8,
         "share": "100%",
-        "real_lower_share": 0.0045000000000000005,
-        "real_average_share": 0.00937828125,
-        "real_upper_share": 0.01675,
+        "real_lower_share": 0.022500000000000003,
+        "real_average_share": 0.047594777343750005,
+        "real_upper_share": 0.08584375000000001,
         "active": true
     },
     {
@@ -624,9 +624,9 @@
         "target_name": "CASA ManCo ApS",
         "target_depth": 2,
         "share": "5-10%",
-        "real_lower_share": 0.006157921875,
-        "real_average_share": 0.010319741455078127,
-        "real_upper_share": 0.015088000000000006,
+        "real_lower_share": null,
+        "real_average_share": null,
+        "real_upper_share": null,
         "active": true
     },
     {
