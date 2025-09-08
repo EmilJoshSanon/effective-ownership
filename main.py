@@ -1,17 +1,3 @@
-# Problem description:
-# Find the effective ownership in focus company (CasaAS and ResightsApS) for each company in the ownership structure.
-
-# NOTES:
-# 1. All companies related to focus company has a source-target relationship that will eventually lead to the focus company.
-#    Therefore, easier to start from the focus company and work our way backwards.
-# 2. Be aware that two companies can own shares in eachother.
-# 3. Example: A and B owns each 50% in C. C owns 50% in A. Effectively, 50% of A's ownership in C are shares C owns in itself and those shares will be distributed pro-rata to A and B.
-#    Accordingly, the effective ownership of A in C is 37.5% (25% + 25% * 50%) and B in C is 62.5% (50% + 25% * 50%).
-# 4. There seem to be three different ways an ownership can be stated in the json files; <5%, lower-upper%, and 100%. Since we
-#    we don't know the lower bound when <5% we will set it to 0%, such that <5% gets translated to lower_share=0% and upper_share=5%.
-# 5. Some entries in the json files are inactive. They just add noise and will therefore be remove.
-# 6. If one company has two effective owerships of the focus company, the two effective ownerships can just be added together to get the total effective ownership.
-
 import json
 import pydantic
 
