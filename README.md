@@ -2,7 +2,7 @@
 
 ### Introduction
 
-This repo is a showcasing of how the effective ownership in complex ownership structures can be calculated.
+This repo is a showcasing of how the effective ownership in complex ownership structures can be calculated using recursive functions.
 
 ### Methodology
 
@@ -12,7 +12,15 @@ In cases where the ownership is expressed as <x% (e.g. <5%), the lower limit is 
 
 Since the size of the tree and the number of branches is arbitrary, a recursive function is used to generalise the algorithm.
 
-When there are circular ownerships in the tree, an ownership matrix is created with dummy variables containing the residual ownership for each company with circular ownership. The matrix is then squared, the result matrix is squared again, and so on, until the result matrix is stable to three decimal points. Since we have no way of knowing how the dummy variables distribute over other owners of one of the companies in a curcular ownership, we use the lower limit of the interval to calculate the effective ownership and multiplies that with the relative [upper limit]/[lower limit] to get the upper limit of the effective ownership.
+When there are circular ownerships in the tree, an ownership matrix is created with dummy variables containing the residual ownership for each company with circular ownership. The matrix is then squared, the result matrix is squared again, and so on, until the result matrix is stable to four decimal points. Since we have no way of knowing how the dummy variables distribute over other owners of one of the companies in a curcular ownership, we use the lower limit of the interval to calculate the effective ownership and multiplies that with the ratio [upper limit]/[lower limit] to get the upper limit of the effective ownership.
+
+### Algorithm
+
+1. Remove all inactive companies
+2. Ownership is given as a string in interval form. The string is parsed into a lower limit and an upper limit.
+3. Impossible upper limits are adjusted.
+4. Lower limits are adjusted for circular ownerships
+5. Effective ownerships for all relevant nodes are calculated and saved to a json file.
 
 ### Data
 

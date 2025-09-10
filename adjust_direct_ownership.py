@@ -22,16 +22,12 @@ class OwnershipNode(pydantic.BaseModel):
     init_upper_share: float | None = None
     adj_lower_share: float | None = None
     adj_upper_share: float | None = None
+    lower_share: float | None = None
+    upper_share: float | None = None
     real_lower_share: float | None
     real_average_share: float | None
     real_upper_share: float | None
     active: bool
-
-
-class Share(pydantic.BaseModel):
-    lower_share: float
-    average_share: float
-    upper_share: float
 
 
 # %%
@@ -43,33 +39,34 @@ def fetch_data(target_company: str):
     return [OwnershipNode(**d) for d in data]
 
 
+# Takes the share interval expressed as a string in the raw data and converts it to an interval of floats.
 def parse_share_interval(network: list[OwnershipNode]):
     for n in range(len(network)):
         share_string = network[n].share.replace("%", "")
         if "-" in share_string:
             lower_share, upper_share = share_string.split("-")
         elif "<" in share_string:
-            lower_share = 0
+            lower_share = 0.0001
             upper_share = share_string.replace("<", "")
         else:
             lower_share = share_string
             upper_share = share_string
         lower_share = float(lower_share) / 100
         upper_share = float(upper_share) / 100
-        network[n].init_lower_share = lower_share if lower_share > 0 else 0.0001
+        network[n].init_lower_share = lower_share
         network[n].init_upper_share = upper_share
     return network
 
 
-def adjust_upper_limits(network: list[OwnershipNode]):
+# Adjusts the upper limit for all companies where the sum of the lower limits of the other owners exceeds the residual ownership.
+def adjust_impossible_upper_limits(network: list[OwnershipNode]):
     for n in range(len(network)):
-        owners = []
-        check_source = network[n].source_name
+        owners: list[OwnershipNode] = []
+        focus_target = network[n].target
         for m in range(len(network)):
-            if network[m].target_name == check_source:
+            if network[m].target == focus_target:
                 owners.append(network[m])
-        for m in range(len(owners)):
-            check_owner_m = m
+        for check_owner_m in range(len(owners)):
             sum_lower = 0
             for l in range(len(owners)):
                 if owners[l].source_name != owners[check_owner_m].source_name:
@@ -83,6 +80,7 @@ def adjust_upper_limits(network: list[OwnershipNode]):
     return network
 
 
+# Recursively finds all circular ownerships related directly or indirectly to the current node.
 def find_circular_ownerships_of_current_node(
     current_source: int,
     network: list[OwnershipNode],
@@ -107,6 +105,7 @@ def find_circular_ownerships_of_current_node(
     return circ_owners
 
 
+# Removes all circular ownerships that are not directly related to the current node.
 def check_if_all_circular_owners_are_related_to_current_node(
     current_source: int,
     circ_owners: list[OwnershipNode],
@@ -130,6 +129,7 @@ def check_if_all_circular_owners_are_related_to_current_node(
     return circ_owners
 
 
+# Creates the index and column ids for the ownership matrix. Also creates a set of unique circular owners.
 def create_matrix_index_and_unique_owners(circ_owners: list[OwnershipNode]):
     index = []
     unique_owners = set()
@@ -141,6 +141,7 @@ def create_matrix_index_and_unique_owners(circ_owners: list[OwnershipNode]):
     return index, columns, unique_owners
 
 
+# Creates the ownership matrix from the circular ownerships.
 def create_ownership_matrix(
     circ_owners: list[OwnershipNode], index: list[str], columns: list[str]
 ):
@@ -158,6 +159,8 @@ def create_ownership_matrix(
     return df
 
 
+# Calculates the adjusted ownership matrix using the ownership matrix by
+# squaring it in a finite loop until all values are stable to 4 decimal points.
 def calculate_adjusted_ownership_matrix(
     df: pd.DataFrame, index: list[str], columns: list[str]
 ):
@@ -179,6 +182,10 @@ def calculate_adjusted_ownership_matrix(
     return df_adj
 
 
+# After finding the effective ownership between the circular owners. The share of the
+# current node not owned by the circular owners is distributed to the other non-circular owners
+# as [non-circular-effective-share]/[non-circular-direct-share]*[owner-direct-share].
+# All circular owners are allocated their respective effective share found in the finite loop.
 def calculate_adjusted_ownership_of_current_node(
     current_source: int,
     network: list[OwnershipNode],
@@ -201,9 +208,31 @@ def calculate_adjusted_ownership_of_current_node(
     return network
 
 
-def find_circular_ownerships(network: list[OwnershipNode]):
+# Last preparation step before we can calculate the effective ownership.
+# It makes sure all nodes have an adj. lower and upper limit to be used in calculating the effective ownership.
+def calculate_upper_limit_from_circular_ownership_and_fill_nones(
+    network: list[OwnershipNode],
+):
+    for n in range(len(network)):
+        if network[n].adj_lower_share is not None:
+            network[n].lower_share = network[n].adj_lower_share
+            network[n].upper_share = (
+                network[n].adj_lower_share
+                * network[n].init_upper_share
+                / network[n].init_lower_share
+            )
+        else:
+            network[n].lower_share = network[n].init_lower_share
+            network[n].upper_share = network[n].init_upper_share
+    return network
+
+
+# The main function of the module that adjusts the ownership shares for impossible upper limit shares and circular ownership.
+def adjust_for_impossible_upper_limits_and_circular_ownerships(
+    network: list[OwnershipNode],
+):
     network = parse_share_interval(network)
-    network = adjust_upper_limits(network)
+    network = adjust_impossible_upper_limits(network)
     for n in range(len(network)):
         circ_owners: list[OwnershipNode] = []
         current_source = network[n].source
@@ -228,18 +257,5 @@ def find_circular_ownerships(network: list[OwnershipNode]):
                 df_ownership.copy(),
                 unique_owners,
             )
+        network = calculate_upper_limit_from_circular_ownership_and_fill_nones(network)
     return network
-
-
-# %%
-network = fetch_data("CasaAS")
-network = find_circular_ownerships(network)
-
-# todo
-# 1. Calculate adj upper limit as adj_lower * init_upper_limit / init_lower_limit
-# 2. Create lower/upper_share = adj_lower/upper if not none else init_lower/upper
-
-# %%
-for n in network:
-    if n.target == 38235036:
-        print(n)

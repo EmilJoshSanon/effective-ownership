@@ -1,26 +1,25 @@
+# %%
 import json
 import pydantic
+from adjust_direct_ownership import (
+    adjust_for_impossible_upper_limits_and_circular_ownerships,
+    OwnershipNode,
+)
 
 
-class OwnershipNode(pydantic.BaseModel):
-    id: str
+class ResultOwnerNode(pydantic.BaseModel):
     source: int
     source_name: str
-    source_depth: int
     target: int
     target_name: str
-    target_depth: int
-    share: str
-    real_lower_share: float | None
-    real_average_share: float | None
-    real_upper_share: float | None
-    active: bool
+    real_lower_share: float
+    real_upper_share: float
+    real_average_share: float
 
 
-class Share(pydantic.BaseModel):
-    lower_share: float
-    average_share: float
-    upper_share: float
+class FocusCompany(pydantic.BaseModel):
+    id: int
+    name: str
 
 
 def fetch_data(target_company: str):
@@ -29,83 +28,40 @@ def fetch_data(target_company: str):
     return [OwnershipNode.model_validate(d) for d in data]
 
 
-def parse_share_interval(share_string: str):
-    share_string = share_string.replace("%", "")
-    if "-" in share_string:
-        lower_share, upper_share = share_string.split("-")
-    elif "<" in share_string:
-        lower_share = 0
-        upper_share = share_string.replace("<", "")
-    else:
-        lower_share = share_string
-        upper_share = share_string
-    lower_share = float(lower_share) / 100
-    upper_share = float(upper_share) / 100
-    average_share = (lower_share + upper_share) / 2
-    return Share(
-        lower_share=lower_share, average_share=average_share, upper_share=upper_share
-    )
-
-
-def check_for_circular_ownership(
-    source_name: str, target_name: str, network: list[OwnershipNode]
-):
-    circular_ownership = False
-    for m in range(len(network)):
-        if (
-            network[m].source_name == target_name
-            and network[m].target_name == source_name
-            and network[m].active
-        ):
-            circular_ownership = True
-    return circular_ownership
-
-
-def calculate_circular_ownership(source_share: Share, target_share: Share):
-    def calculator(source_share: float, target_share: float):
-        direct_ownership = source_share * (1 - target_share)
-        pro_rata_ownership = source_share**2 * target_share
-        return direct_ownership + pro_rata_ownership
-
-    source_share.lower_share = calculator(
-        source_share.lower_share, target_share.lower_share
-    )
-    source_share.average_share = calculator(
-        source_share.average_share, target_share.average_share
-    )
-    source_share.upper_share = calculator(
-        source_share.upper_share, target_share.upper_share
-    )
-    return source_share
+def remove_inactive_nodes(network: list[OwnershipNode]):
+    return [node for node in network if node.active]
 
 
 def calculate_effective_ownership(
-    source_share: Share, current_node: OwnershipNode, previous_node: OwnershipNode
+    source: OwnershipNode, current_node: OwnershipNode, previous_node: OwnershipNode
 ):
     # If real share is None, set it to 0. Otherwise we can't add to it.
     # Which is necessary if a subsidiary down the line has two effective ownerships of the focus company.
     current_node.real_lower_share = (
         0 if current_node.real_lower_share is None else current_node.real_lower_share
     )
-    current_node.real_average_share = (
-        0
-        if current_node.real_average_share is None
-        else current_node.real_average_share
-    )
     current_node.real_upper_share = (
         0 if current_node.real_upper_share is None else current_node.real_upper_share
     )
 
-    current_node.real_lower_share += (
-        source_share.lower_share * previous_node.real_lower_share
-    )
-    current_node.real_average_share += (
-        source_share.average_share * previous_node.real_average_share
-    )
-    current_node.real_upper_share += (
-        source_share.upper_share * previous_node.real_upper_share
-    )
+    current_node.real_lower_share += source.lower_share * previous_node.real_lower_share
+    current_node.real_upper_share += source.upper_share * previous_node.real_upper_share
+    current_node.real_average_share = (
+        current_node.real_lower_share + current_node.real_upper_share
+    ) / 2
     return current_node
+
+
+def find_focus_company(
+    network: list[OwnershipNode], focus_company_name: str
+) -> FocusCompany | None:
+    for node in network:
+        if node.target_name == focus_company_name:
+            return FocusCompany(
+                id=node.target,
+                name=node.target_name,
+            )
+    return None
 
 
 # Algorithm:
@@ -132,28 +88,18 @@ def populate_effective_ownership(
             and network[n].target_name == target_company
             and network[n].active
         ):
-            source_share = parse_share_interval(network[n].share)
+            source = network[n]
             if previous_node:
-                # Check if a node exist with source_name equal to the current nodes target_name
-                # and target_name equal to the current nodes source_name. If so, it means there is a
-                # circular ownership and we therefore need to account for that.
-                for m in range(len(network)):
-                    if (
-                        network[m].source_name == network[n].target_name
-                        and network[m].target_name == network[n].source_name
-                    ):
-                        target_share = parse_share_interval(network[m].share)
-                        source_share = calculate_circular_ownership(
-                            source_share, target_share
-                        )
                 result_network[n] = calculate_effective_ownership(
-                    source_share, network[n], previous_node
+                    source, network[n], previous_node
                 )
             else:
                 # No previous node means we are at the root of the tree
-                result_network[n].real_lower_share = source_share.lower_share
-                result_network[n].real_average_share = source_share.average_share
-                result_network[n].real_upper_share = source_share.upper_share
+                result_network[n].real_lower_share = source.lower_share
+                result_network[n].real_upper_share = source.upper_share
+                result_network[n].real_average_share = (
+                    source.lower_share + source.upper_share
+                ) / 2
 
             result_network = populate_effective_ownership(
                 network[n].source_name, result_network, result_network[n]
@@ -161,15 +107,40 @@ def populate_effective_ownership(
     return result_network
 
 
+# %%
 if __name__ == "__main__":
     for target_company in [
         {"comp_name": "CASA A/S", "file_name": "CasaAS"},
         {"comp_name": "Resights ApS", "file_name": "ResightsApS"},
     ]:
         network = fetch_data(target_company["file_name"])
-        result_network = populate_effective_ownership(
-            target_company["comp_name"], network
-        )
+        focus_company = find_focus_company(network, target_company["comp_name"])
+        network = remove_inactive_nodes(network)
+        network = adjust_for_impossible_upper_limits_and_circular_ownerships(network)
+        network = populate_effective_ownership(target_company["comp_name"], network)
+        result_network: list[ResultOwnerNode] = []
+        for node in network:
+            owner_already_in_result = False
+            if node.real_lower_share is not None:
+                for owner in result_network:
+                    if owner.source == node.source:
+                        owner.real_lower_share += node.real_lower_share or 0
+                        owner.real_upper_share += node.real_upper_share or 0
+                        owner.real_average_share += node.real_average_share or 0
+                        owner_already_in_result = True
+                        break
+                if not owner_already_in_result:
+                    result_network.append(
+                        ResultOwnerNode(
+                            source=node.source,
+                            source_name=node.source_name,
+                            target=focus_company.id,
+                            target_name=focus_company.name,
+                            real_lower_share=node.real_lower_share,
+                            real_upper_share=node.real_upper_share,
+                            real_average_share=node.real_average_share,
+                        )
+                    )
         with open(f"result/{target_company['file_name']}_result.json", "w") as f:
             json.dump(
                 [node.model_dump() for node in result_network],
